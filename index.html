@@ -3,108 +3,102 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Pages VJ Mixer</title>
+    <title>EXTREME CHAOS VJ MIXER</title>
     <style>
         body {
-            background-color: #111;
-            color: #fff;
-            font-family: sans-serif;
+            background-color: #000;
+            color: #f0f;
+            font-family: 'Courier New', monospace;
             display: flex;
             flex-direction: column;
             align-items: center;
             margin: 0;
             padding: 20px;
+            overflow-x: hidden;
         }
-        h1 { margin-bottom: 10px; font-size: 1.2rem; }
+        h1 { 
+            text-shadow: 2px 2px 0px #fff; 
+            animation: shake 0.5s infinite;
+        }
         
-        /* コントロールパネル */
+        /* 激しいUI */
         .controls {
-            background: #222;
+            background: #111;
+            border: 2px solid #f0f;
+            box-shadow: 0 0 15px #f0f;
             padding: 15px;
-            border-radius: 8px;
             width: 90%;
-            max-width: 800px;
-            display: grid;
-            gap: 10px;
+            max-width: 900px;
             margin-bottom: 20px;
+            z-index: 10;
         }
-        .control-group {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-            border-bottom: 1px solid #444;
-            padding-bottom: 10px;
-        }
-        label { font-size: 0.8rem; color: #aaa; }
-        input[type="text"] {
-            background: #333;
-            border: 1px solid #555;
-            color: #fff;
-            padding: 5px;
-            border-radius: 4px;
-        }
-        input[type="file"] { font-size: 0.8rem; }
+        
+        label { display: block; margin-top: 10px; color: #0ff; font-weight: bold; }
+        input[type="file"] { margin-top: 5px; color: #fff; }
+        
         button {
-            background: #007bff;
-            color: white;
+            background: #f0f;
+            color: #000;
             border: none;
-            padding: 10px;
-            border-radius: 4px;
-            cursor: pointer;
+            padding: 15px 30px;
+            font-size: 1.2rem;
             font-weight: bold;
-            margin-top: 10px;
+            cursor: pointer;
+            margin-top: 20px;
+            width: 100%;
+            text-transform: uppercase;
         }
-        button:hover { background: #0056b3; }
+        button:hover { background: #fff; color: #f0f; }
 
-        /* キャンバス表示エリア */
+        /* キャンバス */
         #canvas-container {
             position: relative;
-            border: 2px solid #444;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            border: 5px solid #fff;
+            box-shadow: 0 0 50px rgba(255, 0, 255, 0.5);
             max-width: 100%;
+            line-height: 0;
         }
-        canvas {
-            display: block;
-            max-width: 100%;
-            height: auto;
-        }
+        canvas { width: 100%; height: auto; display: block; }
         
-        /* 処理用（非表示） */
         .hidden-source { display: none; }
         
-        #status {
-            color: #0f0;
-            font-family: monospace;
-            margin-top: 5px;
-            font-size: 0.9rem;
+        #status { color: #ff0; margin-top: 10px; font-weight: bold; }
+
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
         }
     </style>
 </head>
 <body>
 
-    <h1>Web VJ: Random Chroma Key Mixer</h1>
+    <h1>⚠️ EXTREME CHAOS MIXER ⚠️</h1>
 
     <div class="controls">
-        <div class="control-group">
-            <label>【上の動画】透過・加工される動画 (MP4)</label>
-            <input type="text" id="urlTop" placeholder="動画URL (CORS対応必須)" value="https://github.com/Emon2358/4949downloader/raw/main/downloads/sm2149860.mp4">
-            <input type="file" id="fileTop" accept="video/*">
+        <div style="color:red; font-weight:bold; border:1px solid red; padding:5px; margin-bottom:10px;">
+            ※警告: このツールは激しい光の点滅（ストロボ効果）を伴います。
         </div>
 
-        <div class="control-group">
-            <label>【下の動画】背景 (MP4)</label>
-            <input type="text" id="urlBot" placeholder="動画URL (CORS対応必須)" value="https://github.com/Emon2358/4949downloader/raw/main/downloads/sm2149860.mp4">
-            <input type="file" id="fileBot" accept="video/*">
-        </div>
+        <label>【TOP LAYER】激しく崩壊する動画 (Local File Recommended)</label>
+        <input type="file" id="fileTop" accept="video/*">
+        
+        <label>【BACKGROUND】異次元化する背景動画 (Local File Recommended)</label>
+        <input type="file" id="fileBot" accept="video/*">
+        
+        <label>【OVERLAY】亡霊のように浮かぶ画像 (Optional)</label>
+        <input type="file" id="fileImg" accept="image/*">
 
-        <div class="control-group">
-            <label>【画像】オーバーレイ画像 (任意)</label>
-            <input type="text" id="urlImg" placeholder="画像URL">
-            <input type="file" id="fileImg" accept="image/*">
-        </div>
-
-        <button id="startBtn">▶ 再生開始 (START VJ)</button>
-        <div id="status">Ready...</div>
+        <button id="startBtn">🔥 ACTIVATE CHAOS 🔥</button>
+        <div id="status">WAITING FOR INPUT...</div>
     </div>
 
     <div id="canvas-container">
@@ -126,158 +120,127 @@
     const startBtn = document.getElementById('startBtn');
 
     let isPlaying = false;
-    let targetR = 0, targetG = 0, targetB = 0;
-    let frameCount = 0;
     
-    // 設定: 感度と変更頻度
-    const CHANGE_INTERVAL = 30; // 何フレームごとに色を変えるか
-    const TOLERANCE = 80;       // 色の許容範囲 (大きいほどガバっと抜ける)
+    // 変数
+    let targetR = 0, targetG = 0, targetB = 0;
+    let currentTolerance = 100;
+    let hueRotate = 0;
 
-    // ローカルファイル読み込みヘルパー
-    function handleFileSelect(fileInput, element, type) {
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const url = URL.createObjectURL(file);
-                element.src = url;
-                statusDiv.innerText = `Loaded local file for ${type}`;
+    // ファイル読み込み処理
+    function handleFile(input, el, name) {
+        input.addEventListener('change', (e) => {
+            const f = e.target.files[0];
+            if(f) {
+                el.src = URL.createObjectURL(f);
+                statusDiv.innerText = `${name} LOADED.`;
             }
         });
     }
+    handleFile(document.getElementById('fileTop'), vidTop, "TOP VIDEO");
+    handleFile(document.getElementById('fileBot'), vidBot, "BOTTOM VIDEO");
+    handleFile(document.getElementById('fileImg'), imgOverlay, "IMAGE");
 
-    handleFileSelect(document.getElementById('fileTop'), vidTop, "Top Video");
-    handleFileSelect(document.getElementById('fileBot'), vidBot, "Bottom Video");
-    
-    // 画像ファイル選択
-    document.getElementById('fileImg').addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            imgOverlay.src = URL.createObjectURL(file);
-            statusDiv.innerText = "Loaded local image";
-        }
-    });
+    // デフォルトURL（CORS制限で動かない場合が多いのでファイル推奨）
+    const DEF_URL = "https://github.com/Emon2358/4949downloader/raw/main/downloads/sm2149860.mp4";
 
-    // 開始ボタン
     startBtn.addEventListener('click', async () => {
-        if (isPlaying) return;
-
-        // URL入力欄に値があればそれを優先（ファイル未選択時）
-        if (!vidTop.src && document.getElementById('urlTop').value) {
-            vidTop.src = document.getElementById('urlTop').value;
-        }
-        if (!vidBot.src && document.getElementById('urlBot').value) {
-            vidBot.src = document.getElementById('urlBot').value;
-        }
-        if (!imgOverlay.src && document.getElementById('urlImg').value) {
-            imgOverlay.src = document.getElementById('urlImg').value;
-        }
+        if(isPlaying) return;
+        
+        // ファイル未指定ならデフォルトを使用
+        if(!vidTop.src) vidTop.src = DEF_URL;
+        if(!vidBot.src) vidBot.src = DEF_URL;
 
         try {
             await Promise.all([vidTop.play(), vidBot.play()]);
-            statusDiv.innerText = "Playing...";
             
-            // キャンバスサイズを動画に合わせる
             canvas.width = vidTop.videoWidth || 640;
             canvas.height = vidTop.videoHeight || 360;
             
+            statusDiv.innerText = "🔥🔥 PROCESSING CHAOS 🔥🔥";
+            statusDiv.style.color = "red";
             isPlaying = true;
-            renderLoop();
-        } catch (e) {
-            console.error(e);
-            statusDiv.innerText = "Error: " + e.message + " (CORS制限の可能性があります)";
-            alert("再生できませんでした。CORS制限されたURLの可能性があります。PC内の動画ファイルを選択して試してください。");
+            chaosLoop();
+        } catch(e) {
+            alert("再生エラー: 動画ファイルを選択してください (CORS制限の可能性)");
         }
     });
 
-    function renderLoop() {
-        if (!isPlaying) return;
-        requestAnimationFrame(renderLoop);
+    function chaosLoop() {
+        if(!isPlaying) return;
+        requestAnimationFrame(chaosLoop);
 
         const w = canvas.width;
         const h = canvas.height;
+        if(w===0) return;
 
-        if (w === 0 || h === 0) return;
-
-        // 1. 下の動画を描画 (反転エフェクト付き)
-        // 一旦普通に描画
+        // --- 1. 背景の描画 (サイケデリック処理) ---
+        // 毎回色相を回転させるフィルタをかける
+        hueRotate = (hueRotate + 15) % 360; // 爆速回転
+        ctx.filter = `invert(100%) hue-rotate(${hueRotate}deg) contrast(200%)`;
         ctx.drawImage(vidBot, 0, 0, w, h);
+        ctx.filter = 'none'; // フィルタ解除
+
+        // --- 2. 手前の動画の処理 (極限クロマキー) ---
+        const tempC = document.createElement('canvas');
+        tempC.width = w; tempC.height = h;
+        const tCtx = tempC.getContext('2d', { willReadFrequently: true });
+        tCtx.drawImage(vidTop, 0, 0, w, h);
         
-        // 背景動画だけネガポジ反転させる（穴が空いたことがわかりやすくするため）
-        // 重い場合はこのブロックを削除してください
-        try {
-            const botData = ctx.getImageData(0, 0, w, h);
-            const bd = botData.data;
-            for (let i = 0; i < bd.length; i += 4) {
-                bd[i] = 255 - bd[i];     // R反転
-                bd[i+1] = 255 - bd[i+1]; // G反転
-                bd[i+2] = 255 - bd[i+2]; // B反転
-            }
-            ctx.putImageData(botData, 0, 0);
-        } catch (e) {
-            // CORSエラーでピクセル操作できない場合はここで止まる
-            return;
-        }
+        let frameData;
+        try { frameData = tCtx.getImageData(0, 0, w, h); } catch(e) { return; }
+        const d = frameData.data;
+        const len = d.length;
 
-        // 2. 上の動画をオフスクリーン処理
-        // 本来はOffscreenCanvasを使うが良いが互換性重視でcreateImageData等を使用
-        // ここでは単純化のため、一時的にメモリ上のcanvasを使うか、
-        // あるいは直接getImageDataするために、まず小さいバッファに描く方法があるが、
-        // 今回は「上の動画」を別の非表示Canvasに描いてデータを取る方式にする。
-        
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = w;
-        tempCanvas.height = h;
-        const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-        tempCtx.drawImage(vidTop, 0, 0, w, h);
-        
-        let topFrame;
-        try {
-            topFrame = tempCtx.getImageData(0, 0, w, h);
-        } catch (e) {
-            // CORSエラー
-            return;
-        }
-        
-        const d = topFrame.data;
-        const l = d.length;
+        // ★★★ 極限パラメータ設定 ★★★
+        // 毎フレーム、ターゲット色を完全ランダムに変更
+        targetR = Math.random() * 255;
+        targetG = Math.random() * 255;
+        targetB = Math.random() * 255;
 
-        // 3. ランダム色の決定
-        frameCount++;
-        if (frameCount % CHANGE_INTERVAL === 0) {
-            // ランダムな色をターゲットにする
-            targetR = Math.floor(Math.random() * 255);
-            targetG = Math.floor(Math.random() * 255);
-            targetB = Math.floor(Math.random() * 255);
-        }
+        // 許容範囲(Tolerance)を「0(透過なし)」～「600(ほぼ全透過)」の間で激しく乱高下させる
+        // Math.random()の二乗を使うことで、極端な値（全消しor全残し）が出やすくする
+        const chaosFactor = Math.random(); 
+        currentTolerance = chaosFactor * chaosFactor * 700; 
 
-        // 4. クロマキー処理 (CPU処理なので高解像度だと重くなります)
-        for (let i = 0; i < l; i += 4) {
-            const r = d[i];
-            const g = d[i+1];
-            const b = d[i+2];
-
-            // ターゲット色との距離（マンハッタン距離で簡易計算）
-            const dist = Math.abs(r - targetR) + Math.abs(g - targetG) + Math.abs(b - targetB);
-
-            if (dist < TOLERANCE) {
-                // 色が近い場合、透明にする
-                d[i+3] = 0; 
+        // ピクセル操作ループ
+        for(let i=0; i<len; i+=4) {
+            // 高速化のためマンハッタン距離
+            const dist = Math.abs(d[i] - targetR) + Math.abs(d[i+1] - targetG) + Math.abs(d[i+2] - targetB);
+            
+            if(dist < currentTolerance) {
+                d[i+3] = 0; // 透明化
+            } else {
+                // 透過されなかった部分も、たまに色をバグらせる（グリッチノイズ）
+                if (Math.random() < 0.05) { // 5%の確率でノイズ
+                    d[i] = 255; // 赤く飛ばす
+                }
             }
         }
 
-        // 5. 加工した上の動画をメインキャンバスに重ねる
-        // putImageDataだと下の絵が消えるので、ImageDataをCanvasにしてdrawImageする
-        tempCtx.putImageData(topFrame, 0, 0);
-        ctx.drawImage(tempCanvas, 0, 0);
+        // --- 3. 合成 ---
+        tCtx.putImageData(frameData, 0, 0);
+        
+        // 画面を揺らす演出（ランダムオフセット）
+        const shakeX = (Math.random() - 0.5) * 20; // -10 ~ 10px
+        const shakeY = (Math.random() - 0.5) * 20;
+        
+        ctx.drawImage(tempC, shakeX, shakeY);
 
-        // 6. 画像オーバーレイ (あれば)
-        if (imgOverlay.src && imgOverlay.complete && imgOverlay.naturalWidth > 0) {
-            ctx.globalAlpha = 0.5; // 半透明
-            ctx.drawImage(imgOverlay, 0, 0, w, h);
+        // --- 4. 画像オーバーレイ (点滅付き) ---
+        if(imgOverlay.src && imgOverlay.complete) {
+            // アルファ値を高速点滅
+            ctx.globalAlpha = Math.random() * 0.8; 
+            // 画像サイズを微妙に変えながら描画（ブレス効果）
+            const scale = 1 + (Math.sin(Date.now() / 50) * 0.1);
+            const iw = w * scale;
+            const ih = h * scale;
+            const ox = (w - iw) / 2;
+            const oy = (h - ih) / 2;
+            
+            ctx.drawImage(imgOverlay, ox, oy, iw, ih);
             ctx.globalAlpha = 1.0;
         }
     }
 </script>
-
 </body>
 </html>

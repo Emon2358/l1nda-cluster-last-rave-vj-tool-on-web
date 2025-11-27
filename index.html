@@ -3,382 +3,244 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WIKI-GLITCH-SURFER</title>
+    <title>WIKI FEEDBACK STREAM</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
             background-color: #000;
-            color: #0f0;
-            font-family: 'Courier New', monospace;
         }
-
-        #canvas-container {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100vw; height: 100vh;
-            z-index: 1;
+        canvas {
+            display: block;
+            /* 画面の端が気にならないように少し拡大 */
+            transform: scale(1.05);
         }
-
-        /* UIレイヤー */
-        .ui {
-            position: fixed;
-            top: 20px; left: 20px;
-            z-index: 100;
-            background: rgba(0, 0, 0, 0.8);
-            border: 1px solid #0f0;
-            padding: 15px;
-            max-width: 300px;
-            box-shadow: 0 0 10px #0f0;
-        }
-
-        h1 { margin: 0 0 10px 0; font-size: 1rem; text-transform: uppercase; }
-        
-        .stat { font-size: 0.8rem; margin-bottom: 5px; color: #fff; word-break: break-all; }
-        .highlight { color: #0ff; font-weight: bold; }
-
-        input[type="text"] {
-            background: #000; border: 1px solid #0f0; color: #0f0;
-            width: 100%; box-sizing: border-box; padding: 5px; margin-bottom: 5px;
-        }
-
-        button {
-            background: #0f0; color: #000; border: none;
-            width: 100%; padding: 10px; font-weight: bold; cursor: pointer;
-            margin-top: 5px; text-transform: uppercase;
-        }
-        button:hover { background: #fff; }
-        button:active { background: #f0f; }
-
-        .mode-select {
-            display: flex; gap: 5px; margin-top: 5px;
-        }
-        .mode-btn { flex: 1; font-size: 0.7rem; padding: 5px; background: #333; color: #fff; }
-        .mode-btn.active { background: #0f0; color: #000; }
-
-        /* ロード中の演出 */
+        /* ロード表示 */
         #loader {
-            position: fixed; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            color: #0f0; font-size: 2rem; display: none;
-            text-shadow: 0 0 10px #0f0;
-            z-index: 50;
+            position: fixed; bottom: 20px; right: 20px;
+            color: rgba(255, 255, 255, 0.5);
+            font-family: monospace; font-size: 1rem;
+            display: none; z-index: 100;
+            mix-blend-mode: difference;
         }
     </style>
 </head>
 <body>
 
-    <div class="ui">
-        <h1>Wiki Glitch Surfer</h1>
-        <div id="articleTitle" class="stat highlight">NO DATA</div>
-        <div class="stat">Words: <span id="wordCount">0</span></div>
-        
-        <input type="text" id="searchInput" placeholder="Search (Leave empty for Random)">
-        <button id="fetchBtn">>>> JUMP TO NEXT ARTICLE</button>
-        
-        <div class="mode-select">
-            <button class="mode-btn active" onclick="setMode('cyber')">CYBER</button>
-            <button class="mode-btn" onclick="setMode('chaos')">CHAOS</button>
-            <button class="mode-btn" onclick="setMode('zen')">ZEN</button>
-        </div>
-        
-        <label style="font-size:0.7rem; color:#aaa; display:block; margin-top:10px;">
-            <input type="checkbox" id="autoJump" checked> Auto Jump (8s)
-        </label>
-    </div>
-
-    <div id="loader">ACCESSING KNOWLEDGE BASE...</div>
-
-    <div id="canvas-container">
-        <canvas id="mainCanvas"></canvas>
-    </div>
+    <div id="loader">LOADING NEW DATA...</div>
+    <canvas id="mainCanvas"></canvas>
 
 <script>
     const canvas = document.getElementById('mainCanvas');
-    const ctx = canvas.getContext('2d');
-    
-    // 状態管理
-    let currentMode = 'cyber';
-    let articleData = {
-        title: "READY",
-        text: "PRESS JUMP TO START WIKI SURFING",
-        words: ["PRESS", "BUTTON", "TO", "CONNECT", "TO", "THE", "HIVE", "MIND"],
-        img: null
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const loader = document.getElementById('loader');
+
+    // --- 設定 ---
+    const API_ENDPOINT = "https://ja.wikipedia.org/w/api.php";
+    const AUTO_JUMP_INTERVAL = 15000; // 15秒ごとに新しい記事へ
+    const SCROLL_SPEED = 8; // 横スクロール速度
+
+    // --- 状態管理 ---
+    let article = {
+        title: "",
+        text: "",
+        img: null,
+        ready: false
     };
     
-    // アニメーション用変数
     let frame = 0;
-    let glitchIntensity = 0;
-    let autoJumpTimer = null;
-    let lastJumpTime = 0;
-    
-    // API設定
-    const API_ENDPOINT = "https://ja.wikipedia.org/w/api.php";
+    let scrollX = 0;
+    let contentWidth = 0;
 
     // 初期化
     resize();
     window.addEventListener('resize', resize);
-    requestAnimationFrame(loop);
+    // 最初の記事取得
+    fetchRandomWiki();
+    // 定期的な記事更新タイマー
+    setInterval(fetchRandomWiki, AUTO_JUMP_INTERVAL);
+    
+    requestAnimationFrame(renderLoop);
 
     function resize() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
     }
 
-    function setMode(mode) {
-        currentMode = mode;
-        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-        event.target.classList.add('active');
-        glitchIntensity = 20; // モード切替時にショックを与える
-    }
-
-    // --- Wikipedia API 連携 ---
-    async function fetchWiki(query = "") {
-        document.getElementById('loader').style.display = 'block';
+    // --- Wikipedia API (ランダム取得のみ) ---
+    async function fetchRandomWiki() {
+        loader.style.display = 'block';
         
-        // パラメータ構築: ランダム or 検索
-        let params = new URLSearchParams({
+        const params = new URLSearchParams({
             origin: '*',
             action: 'query',
             format: 'json',
+            generator: 'random',
+            grnnamespace: 0,
+            grnlimit: 1,
             prop: 'extracts|pageimages',
-            piprop: 'original', // 高画質画像を取得
-            explaintext: 1,     // プレーンテキストのみ
-            exintro: 1,         // 導入部のみ
+            piprop: 'original',
+            explaintext: 1,
+            exintro: 1,
         });
-
-        if (query) {
-            params.append('generator', 'search');
-            params.append('gsrsearch', query);
-            params.append('gsrlimit', 1);
-        } else {
-            params.append('generator', 'random');
-            params.append('grnnamespace', 0);
-            params.append('grnlimit', 1);
-        }
 
         try {
             const res = await fetch(`${API_ENDPOINT}?${params}`);
             const data = await res.json();
             
-            if (!data.query || !data.query.pages) throw new Error("No pages found");
-            
+            if (!data.query || !data.query.pages) throw new Error("No data");
             const pageId = Object.keys(data.query.pages)[0];
             const page = data.query.pages[pageId];
             
-            // データ更新
-            articleData.title = page.title;
-            articleData.text = page.extract || "No text available.";
+            // 新しいデータを準備
+            const newArticle = {
+                title: page.title.toUpperCase(),
+                // 長すぎるテキストはカット
+                text: (page.extract || "").substring(0, 500).replace(/\s+/g, ' '),
+                img: null,
+                ready: false
+            };
             
-            // テキストを単語に分解（日本語対応のため簡易的な区切り）
-            // 漢字・ひらがな・カタカナの境界などで無理やり切るVJsytle
-            articleData.words = articleData.text.split(/([、。]|\s+|(?<=[漢字])(?=[ひらがな])|(?<=[ひらがな])(?=[漢字]))/).filter(w => w && w.length > 0);
-            
-            // 画像処理
+            // 画像読み込み処理
             if (page.original) {
                 const img = new Image();
                 img.crossOrigin = "Anonymous";
+                img.onload = () => {
+                    newArticle.img = img;
+                    // 画像読み込み完了後にデータを差し替え＆位置リセット
+                    updateArticle(newArticle);
+                };
+                img.onerror = () => {
+                     // 画像失敗時もデータは差し替える
+                    updateArticle(newArticle);
+                };
                 img.src = page.original.source;
-                articleData.img = img;
             } else {
-                articleData.img = null; // 画像なし
+                // 画像なしの場合
+                updateArticle(newArticle);
             }
 
-            // UI更新
-            document.getElementById('articleTitle').innerText = page.title;
-            document.getElementById('wordCount').innerText = articleData.words.length;
-            
-            // グリッチ演出トリガー
-            glitchIntensity = 50;
-            
         } catch (e) {
             console.error(e);
-            articleData.title = "ERROR";
-            articleData.words = ["CONNECTION", "FAILED", "RETRYING"];
-        } finally {
-            document.getElementById('loader').style.display = 'none';
+            loader.style.display = 'none';
         }
     }
 
-    // ボタンイベント
-    document.getElementById('fetchBtn').addEventListener('click', () => {
-        const query = document.getElementById('searchInput').value;
-        fetchWiki(query);
-        lastJumpTime = Date.now();
-    });
+    function updateArticle(newData) {
+        article = newData;
+        article.ready = true;
+        // スクロール位置を画面右外へリセット
+        scrollX = canvas.width + 100;
+        loader.style.display = 'none';
+    }
 
-    // --- VJ レンダリングループ ---
-    function loop() {
-        requestAnimationFrame(loop);
+    // --- メイン描画ループ ---
+    function renderLoop() {
+        requestAnimationFrame(renderLoop);
         frame++;
 
         const w = canvas.width;
         const h = canvas.height;
-        const now = Date.now();
+        const cx = w / 2;
+        const cy = h / 2;
 
-        // 自動ジャンプ処理
-        if (document.getElementById('autoJump').checked) {
-            if (now - lastJumpTime > 8000) { // 8秒ごと
-                fetchWiki(document.getElementById('searchInput').value);
-                lastJumpTime = now;
-            }
-        }
-
-        // 1. 背景描画 (画像 or ノイズ)
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, w, h);
-
-        if (articleData.img && articleData.img.complete) {
-            drawGlitchImage(w, h);
-        } else {
-            // 画像がない場合はデジタルノイズ
-            drawDigitalNoise(w, h);
-        }
-
-        // 2. モード別テキスト描画
+        // =========================================
+        // 1. 強烈なフィードバック処理 (画面をクリアしない)
+        // =========================================
         ctx.save();
-        if (currentMode === 'cyber') {
-            drawCyberText(w, h);
-        } else if (currentMode === 'chaos') {
-            drawChaosText(w, h);
-        } else if (currentMode === 'zen') {
-            drawZenText(w, h);
-        }
+        
+        // 中心基準で変形させる
+        ctx.translate(cx, cy);
+        
+        // 拡大（ズーム効果）: 1.01〜1.03倍でジワジワ広がる
+        const zoom = 1.015 + Math.sin(frame * 0.01) * 0.005;
+        ctx.scale(zoom, zoom);
+        
+        // 回転（渦巻き効果）: ゆっくり回転し続ける
+        ctx.rotate(0.005 * Math.sin(frame * 0.05));
+        
+        ctx.translate(-cx, -cy);
+        
+        // 前のフレームを少し暗くして描画（残像の減衰）
+        // globalAlphaが1に近いほど残像が長く残る
+        ctx.globalAlpha = 0.92;
+        // 合成モードを工夫してサイケデリックな色にする
+        // 'lighter'や'screen'だと光り輝き、'difference'だと色が反転し続ける
+        ctx.globalCompositeOperation = (frame % 200 < 100) ? 'lighter' : 'difference';
+        
+        ctx.drawImage(canvas, 0, 0);
         ctx.restore();
 
-        // 3. タイトル（最前面）
-        drawTitle(w, h);
-
-        // グリッチ強度の減衰
-        if (glitchIntensity > 0) glitchIntensity *= 0.95;
-    }
-
-    // --- エフェクト関数群 ---
-
-    function drawGlitchImage(w, h) {
-        // 画像を引き伸ばして描画
-        const img = articleData.img;
-        
-        // ランダムなズレ (グリッチ強度依存)
-        const shakeX = (Math.random() - 0.5) * glitchIntensity;
-        const shakeY = (Math.random() - 0.5) * glitchIntensity;
-
-        // RGB分解（色収差）
-        ctx.globalCompositeOperation = 'screen';
-        
-        // Red Channel
-        ctx.globalAlpha = 0.8;
-        ctx.drawImage(img, -10 + shakeX, 0 + shakeY, w + 20, h);
-        
-        // Blue Channel (Cyan)
-        ctx.globalAlpha = 0.5;
-        ctx.drawImage(img, 10 - shakeX, 0 - shakeY, w + 20, h);
-        
+        // リセット
         ctx.globalAlpha = 1.0;
         ctx.globalCompositeOperation = 'source-over';
-        
-        // たまに反転
-        if (Math.random() < 0.05) {
-            ctx.filter = 'invert(100%)';
-            ctx.drawImage(img, 0, 0, w, h);
-            ctx.filter = 'none';
-        }
-    }
 
-    function drawDigitalNoise(w, h) {
-        // マトリックス風の縦線ノイズ
-        ctx.fillStyle = `rgba(0, 255, 0, 0.1)`;
-        const cols = Math.floor(w / 20);
-        for(let i=0; i<cols; i++) {
-            if(Math.random() > 0.9) {
-                const rectH = Math.random() * h;
-                ctx.fillRect(i * 20, 0, 18, rectH);
-            }
-        }
-    }
+        // ごく薄く黒を重ねて、無限発散を防ぐ（これがないと真っ白/真っ黒になる）
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+        ctx.fillRect(0, 0, w, h);
 
-    function drawCyberText(w, h) {
-        // 高速で単語がフラッシュする (RSVP)
-        ctx.font = 'bold 80px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillStyle = '#fff';
-        
-        // 記事内の単語をランダムにピックアップ
-        const wordIndex = Math.floor((frame / 5) % articleData.words.length);
-        const word = articleData.words[wordIndex];
-        
-        if (word) {
-            ctx.fillText(word, w/2, h/2);
-            
-            // 残像
-            ctx.strokeStyle = '#0ff';
-            ctx.strokeText(word, w/2 + 5, h/2 + 5);
-        }
-    }
 
-    function drawChaosText(w, h) {
-        // 単語が雨のように降る
-        ctx.font = '20px monospace';
-        ctx.fillStyle = '#0f0';
-        
-        const count = 30; // 画面に出す数
-        for(let i=0; i<count; i++) {
-            // ランダムに単語を選ぶ
-            const idx = Math.floor(Math.random() * articleData.words.length);
-            const word = articleData.words[idx];
-            if(!word) continue;
+        // =========================================
+        // 2. コンテンツのスクロール描画
+        // =========================================
+        if (!article.ready) return;
 
-            const x = (Math.random() * w);
-            const y = (Math.random() * h);
-            
-            // グリッチ強度が高いときは文字サイズも狂う
-            const size = 20 + Math.random() * glitchIntensity;
-            ctx.font = `${size}px monospace`;
-            
-            ctx.fillText(word, x, y);
-        }
-    }
+        // スクロール位置更新
+        scrollX -= SCROLL_SPEED;
 
-    function drawZenText(w, h) {
-        // 文章を横に流す (ニュースティッカー風だが大量)
-        ctx.font = '40px sans-serif';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        
-        const speed = (frame * 5) % (articleData.text.length * 20);
-        ctx.fillText(articleData.text, w - speed, h/2);
-        ctx.fillText(articleData.text, w - speed - 500, h/2 + 100);
-        ctx.fillText(articleData.text, w - speed + 500, h/2 - 100);
-    }
+        let currentX = scrollX;
+        const centerY = h / 2;
+        const titleSize = h * 0.15; // タイトル文字サイズ
+        const textSize = h * 0.05;  // 本文文字サイズ
 
-    function drawTitle(w, h) {
-        // 画面上部にタイトル表示
-        ctx.font = 'bold 60px Courier New';
         ctx.fillStyle = '#fff';
         ctx.strokeStyle = '#000';
-        ctx.lineWidth = 5;
-        ctx.textAlign = 'left';
-        
-        const title = articleData.title.toUpperCase();
-        
-        // グリッチ文字化け演出
-        let displayTitle = "";
-        for(let i=0; i<title.length; i++) {
-            if (Math.random() < glitchIntensity * 0.01) {
-                displayTitle += String.fromCharCode(33 + Math.random()*50);
-            } else {
-                displayTitle += title[i];
-            }
+        ctx.lineWidth = 8;
+        ctx.textBaseline = 'middle';
+
+        // --- 画像描画 ---
+        if (article.img) {
+            // アスペクト比を維持して高さを画面の6割に
+            const imgH = h * 0.6;
+            const scale = imgH / article.img.height;
+            const imgW = article.img.width * scale;
+            
+            // 画像の縁取り効果（光らせる）
+            ctx.shadowColor = '#0ff';
+            ctx.shadowBlur = 20;
+            ctx.drawImage(article.img, currentX, centerY - imgH/2, imgW, imgH);
+            ctx.shadowBlur = 0; // リセット
+
+            currentX += imgW + 50; // 次の要素のためにXを進める
         }
+
+        // --- タイトル描画 ---
+        ctx.font = `900 ${titleSize}px Impact, sans-serif`;
+        // 縁取りと塗り
+        ctx.strokeText(article.title, currentX, centerY - titleSize/2);
+        ctx.fillText(article.title, currentX, centerY - titleSize/2);
         
-        ctx.strokeText(displayTitle, 40, h - 40);
-        ctx.fillText(displayTitle, 40, h - 40);
+        const titleWidth = ctx.measureText(article.title).width;
+        currentX += titleWidth + 50;
 
-        // 枠線
-        ctx.strokeStyle = '#0f0';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(20, 20, w-40, h-40);
+        // --- 本文描画 ---
+        ctx.font = `bold ${textSize}px monospace`;
+        ctx.lineWidth = 4;
+        ctx.strokeText(article.text, currentX, centerY + titleSize/2);
+        ctx.fillText(article.text, currentX, centerY + titleSize/2);
+
+        const textWidth = ctx.measureText(article.text).width;
+        currentX += textWidth;
+
+        // 全体の幅を記録（ループ判定用だが今回は使い捨て）
+        contentWidth = currentX - scrollX;
+
+        // 画面外に出たらリセット（次の記事が来るまで待機状態のような位置へ）
+        if (scrollX + contentWidth < -100) {
+            // ループさせず、次のデータ更新を待つ形にする
+            // (記事更新タイマーが次のデータを読み込んで位置をリセットしてくれる)
+        }
     }
-
 </script>
 </body>
 </html>

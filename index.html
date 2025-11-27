@@ -3,138 +3,217 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WIKI FEEDBACK STREAM</title>
+    <title>WIKI ATOMIZER VJ</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
             background-color: #000;
+            font-family: 'Courier New', monospace;
         }
-        canvas {
-            display: block;
-            /* 画面の端が気にならないように少し拡大 */
-            transform: scale(1.05);
+
+        /* キャンバス（全画面） */
+        #canvas-container {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 0;
         }
-        /* ロード表示 */
-        #loader {
-            position: fixed; bottom: 20px; right: 20px;
-            color: rgba(255, 255, 255, 0.5);
-            font-family: monospace; font-size: 1rem;
-            display: none; z-index: 100;
-            mix-blend-mode: difference;
+
+        /* コントロールパネル (下部) */
+        .controls {
+            position: fixed;
+            bottom: 0; left: 0;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            border-top: 2px solid #0f0;
+            padding: 15px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            z-index: 100;
+            box-sizing: border-box;
+            box-shadow: 0 -10px 30px rgba(0, 255, 0, 0.2);
+        }
+
+        /* 入力フォーム類 */
+        input[type="text"] {
+            flex: 2;
+            background: #111;
+            border: 1px solid #444;
+            color: #0f0;
+            padding: 10px;
+            font-size: 1.2rem;
+            font-family: monospace;
+            text-transform: uppercase;
+        }
+        input[type="text"]:focus { outline: none; border-color: #0f0; box-shadow: 0 0 10px #0f0; }
+
+        button {
+            flex: 1;
+            background: #0f0;
+            color: #000;
+            border: none;
+            padding: 10px;
+            font-size: 1.1rem;
+            font-weight: 900;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+        button:hover { background: #fff; }
+
+        /* 動画ファイル選択エリア (右上のフローティング) */
+        .file-zone {
+            position: fixed;
+            top: 20px; right: 20px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px dashed #fff;
+            color: #fff;
+            padding: 15px;
+            text-align: center;
+            font-size: 0.8rem;
+            z-index: 101;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .file-zone:hover { background: #0f0; color: #000; border-color: #000; }
+        input[type="file"] { display: none; }
+
+        /* ステータス表示 */
+        #status {
+            position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: #0f0; font-size: 3rem; font-weight: bold;
+            display: none; text-shadow: 0 0 15px #0f0; z-index: 50;
+            mix-blend-mode: hard-light;
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
 
-    <div id="loader">LOADING NEW DATA...</div>
-    <canvas id="mainCanvas"></canvas>
+    <div id="canvas-container">
+        <canvas id="mainCanvas"></canvas>
+    </div>
+
+    <div id="status">INITIALIZING...</div>
+
+    <label class="file-zone">
+        📂 LOAD MP4 VIDEO
+        <input type="file" id="videoInput" accept="video/mp4,video/mov,video/webm">
+    </label>
+
+    <div class="controls">
+        <input type="text" id="searchInput" placeholder="SEARCH CONCEPT (ex. UNIVERSE, CHAOS)" value="フラクタル">
+        <button id="searchBtn">DECONSTRUCT</button>
+    </div>
+
+    <video id="bgVideo" loop muted playsinline style="display:none;"></video>
 
 <script>
     const canvas = document.getElementById('mainCanvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    const loader = document.getElementById('loader');
+    
+    const video = document.getElementById('bgVideo');
+    const statusDiv = document.getElementById('status');
+    const searchInput = document.getElementById('searchInput');
 
     // --- 設定 ---
     const API_ENDPOINT = "https://ja.wikipedia.org/w/api.php";
-    const AUTO_JUMP_INTERVAL = 15000; // 15秒ごとに新しい記事へ
-    const SCROLL_SPEED = 8; // 横スクロール速度
 
     // --- 状態管理 ---
-    let article = {
-        title: "",
-        text: "",
-        img: null,
-        ready: false
-    };
-    
+    let charPool = []; // 取得した全文字のプール
     let frame = 0;
-    let scrollX = 0;
-    let contentWidth = 0;
-
+    let isVideoLoaded = false;
+    
     // 初期化
     resize();
     window.addEventListener('resize', resize);
-    // 最初の記事取得
-    fetchRandomWiki();
-    // 定期的な記事更新タイマー
-    setInterval(fetchRandomWiki, AUTO_JUMP_INTERVAL);
+    
+    // 最初のWiki取得
+    fetchWikiText("フラクタル");
     
     requestAnimationFrame(renderLoop);
+
+    // --- イベントリスナー ---
+    
+    // 1. 検索実行
+    document.getElementById('searchBtn').addEventListener('click', () => {
+        fetchWikiText(searchInput.value);
+    });
+    searchInput.addEventListener('keypress', (e) => {
+        if(e.key === 'Enter') fetchWikiText(searchInput.value);
+    });
+
+    // 2. MP4ファイル読み込み
+    document.getElementById('videoInput').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const url = URL.createObjectURL(file);
+            video.src = url;
+            video.play();
+            isVideoLoaded = true;
+            document.querySelector('.file-zone').innerText = "PLAYING: " + file.name;
+        }
+    });
 
     function resize() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
     }
 
-    // --- Wikipedia API (ランダム取得のみ) ---
-    async function fetchRandomWiki() {
-        loader.style.display = 'block';
-        
+    // --- Wikipedia API: テキストの素粒子化 ---
+    async function fetchWikiText(query) {
+        if(!query) return;
+        statusDiv.style.display = 'block';
+        statusDiv.innerText = "ACCESSING HIVE MIND...";
+
         const params = new URLSearchParams({
             origin: '*',
             action: 'query',
             format: 'json',
-            generator: 'random',
-            grnnamespace: 0,
-            grnlimit: 1,
-            prop: 'extracts|pageimages',
-            piprop: 'original',
-            explaintext: 1,
-            exintro: 1,
+            list: 'search',
+            srsearch: query,
+            srlimit: 1,
         });
 
         try {
-            const res = await fetch(`${API_ENDPOINT}?${params}`);
-            const data = await res.json();
+            // ページ検索
+            const searchRes = await fetch(`${API_ENDPOINT}?${params}`);
+            const searchData = await searchRes.json();
             
-            if (!data.query || !data.query.pages) throw new Error("No data");
-            const pageId = Object.keys(data.query.pages)[0];
-            const page = data.query.pages[pageId];
+            if (!searchData.query.search.length) throw new Error("Not Found");
+            const pageId = searchData.query.search[0].pageid;
+
+            // 本文取得
+            const contentParams = new URLSearchParams({
+                origin: '*',
+                action: 'query',
+                format: 'json',
+                prop: 'extracts',
+                pageids: pageId,
+                explaintext: 1, // プレーンテキストのみ
+            });
+
+            const contentRes = await fetch(`${API_ENDPOINT}?${contentParams}`);
+            const contentData = await contentRes.json();
+            const rawText = contentData.query.pages[pageId].extract;
+
+            // 【重要】テキストを一文字ずつ分解して配列化
+            // 空白や改行を除去し、純粋な「文字」のリストにする
+            charPool = rawText.replace(/\s+/g, '').split('');
             
-            // 新しいデータを準備
-            const newArticle = {
-                title: page.title.toUpperCase(),
-                // 長すぎるテキストはカット
-                text: (page.extract || "").substring(0, 500).replace(/\s+/g, ' '),
-                img: null,
-                ready: false
-            };
-            
-            // 画像読み込み処理
-            if (page.original) {
-                const img = new Image();
-                img.crossOrigin = "Anonymous";
-                img.onload = () => {
-                    newArticle.img = img;
-                    // 画像読み込み完了後にデータを差し替え＆位置リセット
-                    updateArticle(newArticle);
-                };
-                img.onerror = () => {
-                     // 画像失敗時もデータは差し替える
-                    updateArticle(newArticle);
-                };
-                img.src = page.original.source;
-            } else {
-                // 画像なしの場合
-                updateArticle(newArticle);
-            }
+            statusDiv.innerText = `LOADED ${charPool.length} PARTICLES`;
+            setTimeout(() => statusDiv.style.display = 'none', 1500);
 
         } catch (e) {
             console.error(e);
-            loader.style.display = 'none';
+            statusDiv.innerText = "DATA ERROR";
+            setTimeout(() => statusDiv.style.display = 'none', 1000);
         }
     }
 
-    function updateArticle(newData) {
-        article = newData;
-        article.ready = true;
-        // スクロール位置を画面右外へリセット
-        scrollX = canvas.width + 100;
-        loader.style.display = 'none';
-    }
-
-    // --- メイン描画ループ ---
+    // --- メインレンダリング (Psychedelic VJ Loop) ---
     function renderLoop() {
         requestAnimationFrame(renderLoop);
         frame++;
@@ -144,101 +223,98 @@
         const cx = w / 2;
         const cy = h / 2;
 
-        // =========================================
-        // 1. 強烈なフィードバック処理 (画面をクリアしない)
-        // =========================================
-        ctx.save();
+        // ==========================================
+        // 1. 映像のサイケデリック加工 (Feedback & Glitch)
+        // ==========================================
         
-        // 中心基準で変形させる
+        // (A) フィードバック処理: 画面を消さずに前のフレームを変形して重ねる
+        ctx.save();
         ctx.translate(cx, cy);
         
-        // 拡大（ズーム効果）: 1.01〜1.03倍でジワジワ広がる
-        const zoom = 1.015 + Math.sin(frame * 0.01) * 0.005;
+        // ズームと回転: 周期的にうねるような動き
+        const zoom = 1.01 + Math.sin(frame * 0.02) * 0.02; 
+        const rotate = Math.sin(frame * 0.01) * 0.01;
+        
         ctx.scale(zoom, zoom);
-        
-        // 回転（渦巻き効果）: ゆっくり回転し続ける
-        ctx.rotate(0.005 * Math.sin(frame * 0.05));
-        
+        ctx.rotate(rotate);
         ctx.translate(-cx, -cy);
         
-        // 前のフレームを少し暗くして描画（残像の減衰）
-        // globalAlphaが1に近いほど残像が長く残る
+        // 残像の透過度 (0.9付近が良い感じに溶ける)
         ctx.globalAlpha = 0.92;
-        // 合成モードを工夫してサイケデリックな色にする
-        // 'lighter'や'screen'だと光り輝き、'difference'だと色が反転し続ける
-        ctx.globalCompositeOperation = (frame % 200 < 100) ? 'lighter' : 'difference';
-        
         ctx.drawImage(canvas, 0, 0);
         ctx.restore();
 
-        // リセット
+        // (B) 動画の描画 (合成モードで色を破壊)
         ctx.globalAlpha = 1.0;
-        ctx.globalCompositeOperation = 'source-over';
+        
+        // 合成モード: 'difference'(差分) と 'exclusion'(除外) を高速点滅で切り替え
+        // これにより色がネガポジ反転を繰り返し、激しい見た目になる
+        const blendMode = (frame % 20 < 10) ? 'difference' : 'exclusion';
+        ctx.globalCompositeOperation = blendMode;
 
-        // ごく薄く黒を重ねて、無限発散を防ぐ（これがないと真っ白/真っ黒になる）
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
-        ctx.fillRect(0, 0, w, h);
-
-
-        // =========================================
-        // 2. コンテンツのスクロール描画
-        // =========================================
-        if (!article.ready) return;
-
-        // スクロール位置更新
-        scrollX -= SCROLL_SPEED;
-
-        let currentX = scrollX;
-        const centerY = h / 2;
-        const titleSize = h * 0.15; // タイトル文字サイズ
-        const textSize = h * 0.05;  // 本文文字サイズ
-
-        ctx.fillStyle = '#fff';
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 8;
-        ctx.textBaseline = 'middle';
-
-        // --- 画像描画 ---
-        if (article.img) {
-            // アスペクト比を維持して高さを画面の6割に
-            const imgH = h * 0.6;
-            const scale = imgH / article.img.height;
-            const imgW = article.img.width * scale;
-            
-            // 画像の縁取り効果（光らせる）
-            ctx.shadowColor = '#0ff';
-            ctx.shadowBlur = 20;
-            ctx.drawImage(article.img, currentX, centerY - imgH/2, imgW, imgH);
-            ctx.shadowBlur = 0; // リセット
-
-            currentX += imgW + 50; // 次の要素のためにXを進める
+        // CSSフィルタ風の色相回転をCanvasでシミュレートするのは重いため、
+        // 描画する動画の色自体は変えず、背景との合成結果で色を変える
+        
+        if (isVideoLoaded && video.readyState >= 2) {
+            // 動画を画面いっぱいに描画
+            ctx.drawImage(video, 0, 0, w, h);
+        } else {
+            // 動画がない場合はノイズパターンを表示
+            if (frame % 5 === 0) {
+                ctx.fillStyle = `hsl(${frame % 360}, 100%, 50%)`;
+                ctx.fillRect(Math.random()*w, 0, Math.random()*100, h);
+            }
         }
 
-        // --- タイトル描画 ---
-        ctx.font = `900 ${titleSize}px Impact, sans-serif`;
-        // 縁取りと塗り
-        ctx.strokeText(article.title, currentX, centerY - titleSize/2);
-        ctx.fillText(article.title, currentX, centerY - titleSize/2);
+        // ==========================================
+        // 2. 文字の素粒子描画 (Particle System)
+        // ==========================================
         
-        const titleWidth = ctx.measureText(article.title).width;
-        currentX += titleWidth + 50;
+        // 通常の描画モードに戻す
+        ctx.globalCompositeOperation = 'source-over';
 
-        // --- 本文描画 ---
-        ctx.font = `bold ${textSize}px monospace`;
-        ctx.lineWidth = 4;
-        ctx.strokeText(article.text, currentX, centerY + titleSize/2);
-        ctx.fillText(article.text, currentX, centerY + titleSize/2);
+        if (charPool.length > 0) {
+            // 1フレームあたりに発生させる文字数 (多いほどカオス)
+            const particlesPerFrame = 60; 
 
-        const textWidth = ctx.measureText(article.text).width;
-        currentX += textWidth;
+            for (let i = 0; i < particlesPerFrame; i++) {
+                // 文字プールからランダムに抽出
+                const char = charPool[Math.floor(Math.random() * charPool.length)];
 
-        // 全体の幅を記録（ループ判定用だが今回は使い捨て）
-        contentWidth = currentX - scrollX;
+                // ランダムな位置
+                const x = Math.random() * w;
+                const y = Math.random() * h;
 
-        // 画面外に出たらリセット（次の記事が来るまで待機状態のような位置へ）
-        if (scrollX + contentWidth < -100) {
-            // ループさせず、次のデータ更新を待つ形にする
-            // (記事更新タイマーが次のデータを読み込んで位置をリセットしてくれる)
+                // ランダムなサイズ
+                const size = Math.random() * 60 + 10; 
+
+                ctx.font = `bold ${size}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                // 文字色: 激しく発光させる
+                const hue = (frame * 5 + Math.random() * 100) % 360;
+                ctx.fillStyle = `hsl(${hue}, 100%, 60%)`;
+                
+                // 文字の縁取り効果 (ネオン風)
+                ctx.shadowColor = `hsl(${hue}, 100%, 50%)`;
+                ctx.shadowBlur = 20;
+
+                ctx.fillText(char, x, y);
+                
+                // リセット
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        // ==========================================
+        // 3. 仕上げのストロボ効果
+        // ==========================================
+        // 低確率で画面全体を白か黒でフラッシュさせる
+        if (Math.random() < 0.03) {
+            ctx.globalCompositeOperation = 'overlay';
+            ctx.fillStyle = Math.random() > 0.5 ? '#fff' : '#000';
+            ctx.fillRect(0, 0, w, h);
         }
     }
 </script>

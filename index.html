@@ -3,357 +3,291 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clean VJ Mixer & Recorder</title>
+    <title>Motion Stacker VJ</title>
     <style>
         body {
-            background-color: #222;
-            color: #eee;
-            font-family: sans-serif;
+            background-color: #000;
+            color: #fff;
+            font-family: 'Courier New', monospace;
             display: flex;
             flex-direction: column;
             align-items: center;
             margin: 0;
             padding: 20px;
-        }
-        
-        h1 { margin-bottom: 10px; font-size: 1.2rem; }
-
-        .container {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            width: 100%;
-            max-width: 900px;
+            overflow: hidden;
         }
 
-        .canvas-area {
-            position: relative;
-            border: 2px solid #555;
-            background: #000;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-            width: 100%;
-            line-height: 0;
-        }
-
-        canvas {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-
+        /* コントロールパネル */
         .controls {
-            background: #333;
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #444;
             padding: 15px;
+            z-index: 100;
+            width: 300px;
             border-radius: 8px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
         }
 
-        .full-width { grid-column: 1 / -1; }
+        h1 { margin: 0 0 10px 0; font-size: 1rem; color: #0ff; text-transform: uppercase; }
 
-        .group {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #444;
-        }
-
-        label { font-size: 0.85rem; color: #bbb; }
-        input[type="file"] { font-size: 0.8rem; }
-        
-        input[type="range"] { width: 100%; }
-
-        .btn-area {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-        }
+        label { display: block; margin-top: 10px; font-size: 0.8rem; color: #aaa; }
+        input[type="range"] { width: 100%; margin-top: 5px; }
+        input[type="file"] { margin-top: 5px; font-size: 0.8rem; width: 100%; }
 
         button {
-            flex: 1;
-            padding: 12px;
+            background: #0ff;
+            color: #000;
             border: none;
-            border-radius: 4px;
+            padding: 10px;
+            width: 100%;
+            margin-top: 15px;
             font-weight: bold;
             cursor: pointer;
-            transition: background 0.2s;
         }
+        button:hover { background: #fff; }
 
-        #startBtn { background: #007bff; color: white; }
-        #startBtn:hover { background: #0056b3; }
-
-        #recBtn { background: #dc3545; color: white; }
-        #recBtn:hover { background: #a71d2a; }
-        #recBtn.recording { background: #fff; color: #dc3545; animation: pulse 1s infinite; }
-
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+        /* キャンバス */
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 0;
         }
-
-        .status {
-            font-family: monospace;
-            color: #0f0;
-            font-size: 0.9rem;
-            min-height: 1.2em;
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+            box-shadow: 0 0 50px rgba(0, 255, 255, 0.2);
         }
 
         /* 非表示要素 */
-        .hidden { display: none; }
+        .hidden-source { display: none; }
+        
+        #status { margin-top: 5px; color: #0f0; font-size: 0.8rem; }
     </style>
 </head>
 <body>
 
-    <h1>Clean Chroma Key Mixer & Recorder</h1>
-
-    <div class="container">
+    <div class="controls">
+        <h1>Motion Stacker</h1>
         
-        <div class="canvas-area">
-            <canvas id="mainCanvas"></canvas>
-        </div>
+        <label>INPUT VIDEO (Local File)</label>
+        <input type="file" id="fileInput" accept="video/*">
+        
+        <label>TRAIL FADE (残像の長さ)</label>
+        <input type="range" id="fadeRange" min="1" max="50" value="5">
+        
+        <label>CHAOS COPIES (重なる量)</label>
+        <input type="range" id="copyRange" min="1" max="20" value="8">
 
-        <div class="status" id="status">Waiting for files...</div>
+        <label>BOX SIZE (切り取る大きさ)</label>
+        <input type="range" id="sizeRange" min="50" max="600" value="200">
 
-        <div class="controls">
-            <div class="group">
-                <label>【手前】色が抜ける動画 (Top Layer)</label>
-                <input type="file" id="fileTop" accept="video/*">
-            </div>
-            <div class="group">
-                <label>【奥】透けて見える動画 (Bottom Layer)</label>
-                <input type="file" id="fileBot" accept="video/*">
-            </div>
-            <div class="group full-width">
-                <label>【画像】半透明で重ねる画像 (Optional)</label>
-                <input type="file" id="fileImg" accept="image/*">
-            </div>
-
-            <div class="group full-width">
-                <label>色の許容範囲 (Tolerance) - 右にするほど多く透けます</label>
-                <input type="range" id="toleranceRange" min="10" max="200" value="80">
-            </div>
-
-            <div class="btn-area full-width">
-                <button id="startBtn">▶ 再生開始</button>
-                <button id="recBtn" disabled>● 録画開始</button>
-            </div>
-        </div>
+        <button id="startBtn">▶ START VJ</button>
+        <div id="status">Waiting...</div>
     </div>
 
-    <video id="vidTop" class="hidden" loop muted playsinline crossorigin="anonymous"></video>
-    <video id="vidBot" class="hidden" loop muted playsinline crossorigin="anonymous"></video>
-    <img id="imgOverlay" class="hidden" crossorigin="anonymous">
+    <div id="canvas-container">
+        <canvas id="mainCanvas"></canvas>
+    </div>
+
+    <video id="sourceVideo" class="hidden-source" loop muted playsinline></video>
+    <canvas id="motionCanvas" class="hidden-source"></canvas>
 
 <script>
-    // 要素の取得
     const canvas = document.getElementById('mainCanvas');
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const ctx = canvas.getContext('2d', { alpha: false }); // 高速化のためalpha false
     
-    const vidTop = document.getElementById('vidTop');
-    const vidBot = document.getElementById('vidBot');
-    const imgOverlay = document.getElementById('imgOverlay');
+    const motionCanvas = document.getElementById('motionCanvas');
+    const mCtx = motionCanvas.getContext('2d', { willReadFrequently: true });
     
+    const video = document.getElementById('sourceVideo');
     const statusDiv = document.getElementById('status');
-    const startBtn = document.getElementById('startBtn');
-    const recBtn = document.getElementById('recBtn');
-    const toleranceRange = document.getElementById('toleranceRange');
+    
+    // パラメータ
+    const fadeRange = document.getElementById('fadeRange');
+    const copyRange = document.getElementById('copyRange');
+    const sizeRange = document.getElementById('sizeRange');
 
-    // 状態管理
     let isPlaying = false;
-    let targetR = 0, targetG = 0, targetB = 0;
-    let frameCount = 0;
     
-    // 録画関連
-    let mediaRecorder;
-    let recordedChunks = [];
-    let isRecording = false;
-
-    // ファイル読み込みヘルパー
-    function handleFile(input, element, name) {
-        input.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if(file) {
-                element.src = URL.createObjectURL(file);
-                statusDiv.innerText = `${name} loaded.`;
-            }
-        });
-    }
-    handleFile(document.getElementById('fileTop'), vidTop, "Top Video");
-    handleFile(document.getElementById('fileBot'), vidBot, "Bottom Video");
+    // 動体検知用変数
+    let prevFrameData = null;
+    const MOTION_SCALE = 0.1; // 計算負荷を下げるため1/10サイズで解析
     
-    document.getElementById('fileImg').addEventListener('change', (e) => {
+    // ファイル読み込み
+    document.getElementById('fileInput').addEventListener('change', (e) => {
         const file = e.target.files[0];
         if(file) {
-            imgOverlay.src = URL.createObjectURL(file);
-            statusDiv.innerText = "Image loaded.";
+            video.src = URL.createObjectURL(file);
+            statusDiv.innerText = "Video Loaded. Press START.";
         }
     });
 
-    // デフォルトURL (ローカルファイル推奨ですが一応残します)
-    const DEF_URL = "https://github.com/Emon2358/4949downloader/raw/main/downloads/sm2149860.mp4";
-
-    // 再生ボタン
-    startBtn.addEventListener('click', async () => {
+    // 開始
+    document.getElementById('startBtn').addEventListener('click', async () => {
         if(isPlaying) return;
-
-        if(!vidTop.src) vidTop.src = DEF_URL;
-        if(!vidBot.src) vidBot.src = DEF_URL;
-
-        try {
-            await Promise.all([vidTop.play(), vidBot.play()]);
-            
-            // キャンバスサイズ設定
-            canvas.width = vidTop.videoWidth || 854;
-            canvas.height = vidTop.videoHeight || 480;
-
-            isPlaying = true;
-            recBtn.disabled = false;
-            statusDiv.innerText = "Playing...";
-            
-            renderLoop();
-        } catch(e) {
-            console.error(e);
-            alert("再生エラー: PC内の動画ファイルを選択してください。");
-        }
-    });
-
-    // 録画ボタン
-    recBtn.addEventListener('click', () => {
-        if (!isRecording) {
-            startRecording();
-        } else {
-            stopRecording();
-        }
-    });
-
-    function startRecording() {
-        const stream = canvas.captureStream(30); // 30 FPS
-        
-        // ブラウザの対応形式を確認
-        const mimeTypes = [
-            'video/mp4;codecs=h264', // Safari / Some Chrome
-            'video/webm;codecs=vp9', // Chrome / Firefox High Quality
-            'video/webm'             // Fallback
-        ];
-
-        let selectedMime = mimeTypes.find(type => MediaRecorder.isTypeSupported(type)) || '';
-
-        if (!selectedMime) {
-            alert("このブラウザは録画に対応していません。");
+        if(!video.src) {
+            alert("動画ファイルを選択してください");
             return;
         }
 
-        mediaRecorder = new MediaRecorder(stream, { mimeType: selectedMime });
-        recordedChunks = [];
+        try {
+            await video.play();
+            
+            // キャンバスサイズ設定
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            // 解析用キャンバス（小さくする）
+            motionCanvas.width = 160; // video.videoWidth * MOTION_SCALE;
+            motionCanvas.height = 90; // video.videoHeight * MOTION_SCALE;
+            
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        mediaRecorder.ondataavailable = (e) => {
-            if (e.data.size > 0) {
-                recordedChunks.push(e.data);
-            }
-        };
+            isPlaying = true;
+            statusDiv.innerText = "Running...";
+            renderLoop();
+        } catch(e) {
+            console.error(e);
+            alert("再生エラー");
+        }
+    });
 
-        mediaRecorder.onstop = saveVideo;
+    // リサイズ対応
+    window.addEventListener('resize', () => {
+        if(isPlaying) {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+    });
 
-        mediaRecorder.start();
-        isRecording = true;
-        recBtn.innerText = "■ 録画停止して保存";
-        recBtn.classList.add('recording');
-        statusDiv.innerText = `Recording... (${selectedMime})`;
-    }
-
-    function stopRecording() {
-        mediaRecorder.stop();
-        isRecording = false;
-        recBtn.innerText = "● 録画開始";
-        recBtn.classList.remove('recording');
-    }
-
-    function saveVideo() {
-        const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        
-        // 拡張子の決定
-        const ext = mediaRecorder.mimeType.includes('mp4') ? 'mp4' : 'webm';
-        a.download = `mixed_video_${Date.now()}.${ext}`;
-        
-        document.body.appendChild(a);
-        a.click();
-        
-        setTimeout(() => {
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            statusDiv.innerText = "Saved!";
-        }, 100);
-    }
-
-    // 描画ループ
     function renderLoop() {
         if(!isPlaying) return;
         requestAnimationFrame(renderLoop);
 
         const w = canvas.width;
         const h = canvas.height;
-        if(w === 0) return;
+        const mw = motionCanvas.width;
+        const mh = motionCanvas.height;
 
-        // 1. 下の動画を描画 (通常描画・ブレなし)
-        ctx.drawImage(vidBot, 0, 0, w, h);
+        // 1. フェード処理（残像を作るため、完全に黒で消さず、薄い黒を重ねる）
+        // range値: 1(遅い/長い) ～ 50(速い/短い)
+        const fadeAlpha = fadeRange.value / 100;
+        ctx.fillStyle = `rgba(0, 0, 0, ${fadeAlpha})`;
+        ctx.fillRect(0, 0, w, h);
 
-        // 2. 上の動画の処理
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = w; tempCanvas.height = h;
-        const tCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-        tCtx.drawImage(vidTop, 0, 0, w, h);
-
-        let frameData;
+        // 2. 動体検知処理
+        // 現在のフレームを小さいキャンバスに描画
+        mCtx.drawImage(video, 0, 0, mw, mh);
+        
+        let currentFrameData;
         try {
-            frameData = tCtx.getImageData(0, 0, w, h);
-        } catch(e) { return; } // CORSエラー回避
+            currentFrameData = mCtx.getImageData(0, 0, mw, mh);
+        } catch(e) { return; }
 
-        const d = frameData.data;
-        const len = d.length;
+        let maxDiff = 0;
+        let maxX = 0;
+        let maxY = 0;
 
-        // 色変更のタイミング (60フレームごとに変更 = 約2秒)
-        frameCount++;
-        if (frameCount % 60 === 0) {
-            targetR = Math.random() * 255;
-            targetG = Math.random() * 255;
-            targetB = Math.random() * 255;
-        }
+        // グリッド単位で差分を計算 (ピクセル全走査は重いので飛ばし飛ばし見る)
+        const grid = 4; // 4x4ピクセル単位
+        const data = currentFrameData.data;
+        const prev = prevFrameData ? prevFrameData.data : null;
 
-        // スライダーの値を取得
-        const tolerance = parseInt(toleranceRange.value);
+        if (prev) {
+            // 最も動きのあるブロックを探す
+            // 簡易的にグリッドごとに合計差分を取る
+            for (let y = 0; y < mh; y += grid) {
+                for (let x = 0; x < mw; x += grid) {
+                    let diffSum = 0;
+                    
+                    // グリッド内のピクセルを見る
+                    const i = (y * mw + x) * 4;
+                    // R, G, B の差分合計
+                    diffSum += Math.abs(data[i] - prev[i]);
+                    diffSum += Math.abs(data[i+1] - prev[i+1]);
+                    diffSum += Math.abs(data[i+2] - prev[i+2]);
 
-        // ピクセル処理 (純粋なクロマキー)
-        for(let i=0; i<len; i+=4) {
-            const r = d[i];
-            const g = d[i+1];
-            const b = d[i+2];
-
-            // 色の距離計算
-            const dist = Math.abs(r - targetR) + Math.abs(g - targetG) + Math.abs(b - targetB);
-
-            // 指定した色に近い場合のみ透明にする
-            if(dist < tolerance) {
-                d[i+3] = 0; // 完全透明
+                    if (diffSum > maxDiff) {
+                        maxDiff = diffSum;
+                        maxX = x;
+                        maxY = y;
+                    }
+                }
             }
         }
 
-        // 処理した上の動画を重ねる
-        tCtx.putImageData(frameData, 0, 0);
-        ctx.drawImage(tempCanvas, 0, 0);
+        // 現在のフレームを保存
+        // 参照渡しにならないようコピーを作成
+        prevFrameData = new ImageData(
+            new Uint8ClampedArray(data),
+            mw,
+            mh
+        );
 
-        // 3. 画像のオーバーレイ (半透明)
-        if(imgOverlay.src && imgOverlay.complete && imgOverlay.naturalWidth > 0) {
-            ctx.globalAlpha = 0.5; // 50%透明
-            ctx.drawImage(imgOverlay, 0, 0, w, h);
-            ctx.globalAlpha = 1.0; // 戻す
+        // 動きが閾値以下なら描画しない（静止時は真っ黒）
+        if (maxDiff < 30) return;
+
+        // 3. 座標変換（小さいキャンバス → 元動画の座標）
+        const scaleX = video.videoWidth / mw;
+        const scaleY = video.videoHeight / mh;
+        
+        const sourceCenterX = maxX * scaleX;
+        const sourceCenterY = maxY * scaleY;
+        
+        // 切り出すサイズ
+        const boxSize = parseInt(sizeRange.value);
+        
+        // ソース動画から切り出す座標 (はみ出し防止なし。黒になるだけなのでOK)
+        const sx = sourceCenterX - boxSize / 2;
+        const sy = sourceCenterY - boxSize / 2;
+
+        // 4. カオス描画（重ねまくる）
+        const copies = parseInt(copyRange.value);
+        
+        // キャンバスの中心
+        const cx = w / 2;
+        const cy = h / 2;
+
+        ctx.save();
+        ctx.translate(cx, cy); // 画面中央を基準にする
+
+        // 指定回数ループして描画
+        for (let i = 0; i < copies; i++) {
+            ctx.save();
+            
+            // ランダムな角度
+            const angle = Math.random() * Math.PI * 2;
+            ctx.rotate(angle);
+            
+            // ランダムな距離（中心から少し散らす）
+            const offset = (Math.random() - 0.5) * (boxSize * 0.5);
+            
+            // 合成モードを少し変えて光らせる（お好みで）
+            ctx.globalCompositeOperation = 'lighter';
+
+            // 切り取った動画を描画
+            // drawImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
+            ctx.drawImage(
+                video, 
+                sx, sy, boxSize, boxSize, // ソースの切り出し位置
+                -boxSize/2 + offset, -boxSize/2, boxSize, boxSize // 描画位置（回転してるので中心基準）
+            );
+            
+            ctx.restore();
         }
+
+        ctx.restore();
     }
 </script>
 </body>
